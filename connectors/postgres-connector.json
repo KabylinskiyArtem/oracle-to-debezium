@@ -1,0 +1,32 @@
+{
+  "name": "postgres-sink-connector",
+  "config": {
+    "connector.class": "io.debezium.connector.jdbc.JdbcSinkConnector",
+    "tasks.max": "1",
+    "topics.regex": "oracle\\.DEBEZIUM\\..*",
+    "transforms": "renameTopic",
+    "transforms.renameTopic.type": "org.apache.kafka.connect.transforms.RegexRouter",
+    "transforms.renameTopic.regex": "oracle\\.DEBEZIUM\\.(.*)",
+    "transforms.renameTopic.replacement": "$1",
+    "table.name.format": "debezium.${topic}",
+
+    "connection.url": "jdbc:postgresql://postgres:5432/postgres_cdc",
+    "connection.username": "debezium_user",
+    "connection.password": "debezium_password",
+
+    "insert.mode": "upsert",
+    "primary.key.mode": "record_key",
+    "primary.key.fields": "ID",
+    "schema.evolution": "basic",
+
+    "auto.create": "true",
+    "auto.evolve": "true",
+
+    "key.converter": "org.apache.kafka.connect.json.JsonConverter",
+    "key.converter.schemas.enable": "true",
+    "value.converter": "org.apache.kafka.connect.json.JsonConverter",
+    "value.converter.schemas.enable": "true",
+
+    "schema.name": "debezium"
+  }
+}

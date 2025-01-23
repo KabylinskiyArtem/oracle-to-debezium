@@ -1,0 +1,138 @@
+services:
+  oracle:
+    image: gvenzl/oracle-xe:21.3.0
+    container_name: oracle
+    ports:
+      - "1522:1521"
+    environment:
+      ORACLE_PASSWORD: "sys_password"
+    volumes:
+      - ./oradata:/opt/oracle/oradata
+      - ./ora-setup-scripts:/docker-entrypoint-initdb.d
+
+  kafka:
+    image: confluentinc/cp-kafka:7.8.0
+    container_name: kafka
+    ports:
+      - 9092:9092
+      - 9093:9093
+    volumes:
+      - ./kafka-data:/var/lib/kafka/data
+      - ./kafka-logs:/var/lib/kafka/logs
+      - ./kafka-setup/entrypoint.sh:/usr/bin/entrypoint.sh
+      - ./kafka-setup/register-connectors.sh:/usr/bin/register-connectors.sh
+      - ./connectors:/kafka/connectors
+    entrypoint: ["/bin/bash", "/usr/bin/entrypoint.sh"]
+    environment:
+      KAFKA_NODE_ID: 1
+      KAFKA_LOG_DIRS: /var/lib/kafka/data
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092,CONTROLLER://localhost:9093
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@localhost:9093
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      KAFKA_NUM_PARTITIONS: 1
+      # KAFKA_SCHEMA_REGISTRY_URL: "schema-registry:8081"
+      # NEEDED TO BE REMOVED IF THE CLASTER IS CREATED
+      CLUSTER_ID: 731692aa-ecae-4ef9-9432-e3fbc3b7e0d9
+
+  kafka-ui:
+    image: provectuslabs/kafka-ui:v0.7.2
+    container_name: kafka-ui
+    ports:
+      - "8085:8080"
+    environment:
+      KAFKA_CLUSTERS_0_NAME: local
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:9092
+    depends_on:
+      - kafka
+
+  debezium-connect:
+    container_name: debezium-connect
+    # build: .
+    # image: debezium-connect-with-avro-connectors:latest
+    image: quay.io/debezium/connect:3.0.7.Final
+    ports:
+      - 8083:8083
+    depends_on:
+      - kafka
+    environment:
+      BOOTSTRAP_SERVERS: kafka:9092
+      GROUP_ID: 1
+      CONFIG_STORAGE_TOPIC: my_connect_configs
+      OFFSET_STORAGE_TOPIC: my_connect_offsets
+      STATUS_STORAGE_TOPIC: my_connect_statuses
+      CONNECT_REST_ADVERTISED_HOST_NAME: debezium-connect
+      CONNECT_PLUGIN_PATH: /kafka/connect #, /kafka/connect/plugins/confluent
+      CONNECTOR_CONFIG_DIR: /kafka/connectors
+      CONNECT_REST_PORT: 8083
+
+    volumes:
+      - ./connectors:/kafka/connectors
+      - ./kafka-setup/register-connectors.sh:/usr/bin/register-connectors.sh
+      - ./connect-data:/var/lib/kafka-connect
+
+  debezium-ui:
+    container_name: debezium-ui
+    image: quay.io/debezium/debezium-ui:2.5
+    ports:
+      - 8087:8080
+    environment:
+      KAFKA_CONNECT_URIS: http://debezium-connect:8083
+    depends_on:
+      - debezium-connect
+
+  postgres:
+    image: postgres:15
+    container_name: postgres
+    ports:
+      - 5433:5432
+    restart: always
+    environment:
+      POSTGRES_USER: postgres_user
+      POSTGRES_PASSWORD: postgres_password
+      POSTGRES_DB: postgres_cdc
+    volumes:
+      - ./postgres-data:/var/lib/postgresql/data
+      - ./pg-setup-scripts:/docker-entrypoint-initdb.d
+
+  #kafka-connect:
+  #  image: confluentinc/cp-kafka-connect:7.8.0
+  #  container_name: kafka-connect
+  #  ports:
+  #    - "8083:8083"
+  #  environment:
+  #    CONNECT_BOOTSTRAP_SERVERS: kafka:9092
+  #    CONNECT_REST_ADVERTISED_HOST_NAME: kafka-connect
+  #    CONNECT_GROUP_ID: "kafka-connect-group"
+  #    CONNECT_CONFIG_STORAGE_TOPIC: "connect-configs"
+  #    CONNECT_OFFSET_STORAGE_TOPIC: "connect-offsets"
+  #    CONNECT_STATUS_STORAGE_TOPIC: "connect-status"
+  #    CONNECT_KEY_CONVERTER: "org.apache.kafka.connect.json.JsonConverter"
+  #    CONNECT_VALUE_CONVERTER: "org.apache.kafka.connect.json.JsonConverter"
+  #    CONNECT_KEY_CONVERTER_SCHEMAS_ENABLE: "false"
+  #    CONNECT_VALUE_CONVERTER_SCHEMAS_ENABLE: "false"
+  #    CONNECT_PLUGIN_PATH: "/usr/share/java,/etc/kafka-connect/jars"
+  #    CONNECT_LOG4J_LOGGERS: "org.apache.kafka.connect.runtime.WorkerSinkTask:TRACE"
+  #  volumes:
+  #    - ./connectors:/etc/kafka-connect/jars
+  #  depends_on:
+  #    - kafka
+
+  #schema-registry:
+  # image: confluentinc/cp-schema-registry:7.8.0
+  # hostname: schema-registry
+  # container_name: schema-registry
+  # depends_on:
+  #   - kafka
+  # ports:
+  #   - 8081:8081
+  # environment:
+  #   SCHEMA_REGISTRY_HOST_NAME: schema-registry
+  #   SCHEMA_REGISTRY_KAFKASTORE_BOOTSTRAP_SERVERS: 'kafka:9092'
+  #   SCHEMA_REGISTRY_LISTENERS: http://0.0.0.0:8081

@@ -1,0 +1,28 @@
+{
+  "name": "oracle-connector",
+  "config": {
+    "connector.class": "io.debezium.connector.oracle.OracleConnector",
+    "tasks.max": "1",
+    "database.hostname": "oracle",
+    "database.port": "1521",
+    "database.user": "c##dbzuser",
+    "database.password": "debezium_common_user_password",
+    "database.dbname": "XE",
+    "database.pdb.name": "XEPDB1",
+    "database.history.kafka.bootstrap.servers": "kafka:9092",
+    "database.history.kafka.topic": "schema-changes.oracle",
+    "snapshot.mode": "initial",
+    "topic.prefix": "oracle",
+
+    "key.converter": "org.apache.kafka.connect.json.JsonConverter",
+    "key.converter.schemas.enable": "true",
+    
+    "value.converter": "org.apache.kafka.connect.json.JsonConverter",
+    "value.converter.schemas.enable": "true",
+
+    "log.mining.strategy": "online_catalog",
+    "archive.destination.name": "LOG_ARCHIVE_DEST_1",
+    "schema.history.internal.kafka.topic": "debezium-schema-history",
+    "schema.history.internal.kafka.bootstrap.servers": "kafka:9092"
+  }
+}
